@@ -26,82 +26,90 @@ uploaded_file = st.file_uploader(
     type=["xlsx"]
 )
 
-def format_value(v):
+def is_blank(v):
+    return pd.isna(v) or str(v).strip() == ""
 
-    if pd.isna(v):
+def format_number(v):
+    if is_blank(v):
         return ""
 
-    if isinstance(v, pd.Timestamp):
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
 
-        if (
-            v.hour == 0 and
-            v.minute == 0 and
-            v.second == 0
-        ):
-            return v.strftime("%d/%m/%Y")
+    return str(v).strip()
 
-        return v.strftime("%H:%M")
-
-    value = str(v).strip()
-
-    if value == "":
+def format_code_3(v):
+    if is_blank(v):
         return ""
 
-    try:
+    value = format_number(v)
 
-        parsed = pd.to_datetime(
-            value,
-            dayfirst=True,
-            errors="raise"
-        )
-
-        if (
-            parsed.hour == 0 and
-            parsed.minute == 0 and
-            parsed.second == 0
-        ):
-            return parsed.strftime("%d/%m/%Y")
-
-        return parsed.strftime("%H:%M")
-
-    except:
-        pass
-
-    try:
-
-        parsed = pd.to_datetime(
-            value,
-            dayfirst=False,
-            errors="raise"
-        )
-
-        if (
-            parsed.hour == 0 and
-            parsed.minute == 0 and
-            parsed.second == 0
-        ):
-            return parsed.strftime("%d/%m/%Y")
-
-        return parsed.strftime("%H:%M")
-
-    except:
-        pass
-
-    if isinstance(v, float):
-
-        if v.is_integer():
-            return str(int(v))
-
-        return str(v)
+    if value.isdigit():
+        return value.zfill(3)
 
     return value
 
-def build_single_record(row, fields):
+def format_date(v):
+    if is_blank(v):
+        return ""
 
+    if isinstance(v, pd.Timestamp):
+        return v.strftime("%d/%m/%Y")
+
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        parsed = pd.to_datetime(v, unit="D", origin="1899-12-30", errors="coerce")
+
+        if pd.notna(parsed):
+            return parsed.strftime("%d/%m/%Y")
+
+    value = str(v).strip()
+
+    parsed = pd.to_datetime(value, dayfirst=True, errors="coerce")
+
+    if pd.notna(parsed):
+        return parsed.strftime("%d/%m/%Y")
+
+    return value
+
+def format_time(v):
+    if is_blank(v):
+        return ""
+
+    if isinstance(v, pd.Timestamp):
+        return v.strftime("%H:%M")
+
+    parsed = pd.to_datetime(v, errors="coerce")
+
+    if pd.notna(parsed):
+        return parsed.strftime("%H:%M")
+
+    return str(v).strip()
+
+def format_field(field, v):
+    field_lower = field.lower()
+
+    if "occupation" in field_lower:
+        return format_code_3(v)
+
+    if "sentence type" in field_lower:
+        return format_code_3(v)
+
+    if "offence type" in field_lower:
+        return format_code_3(v)
+
+    if "date" in field_lower or "dob" in field_lower:
+        return format_date(v)
+
+    if "time" in field_lower:
+        return format_time(v)
+
+    return format_number(v)
+
+def build_single_record(row, fields):
     values = []
 
     for field in fields:
-        values.append(format_value(row.get(field, "")))
+        values.append(format_field(field, row.get(field, "")))
 
     if all(v == "" for v in values):
         return ""
@@ -109,15 +117,13 @@ def build_single_record(row, fields):
     return ":".join(values)
 
 def build_multi_record(row, groups):
-
     records = []
 
     for group in groups:
-
         values = []
 
         for field in group:
-            values.append(format_value(row.get(field, "")))
+            values.append(format_field(field, row.get(field, "")))
 
         if any(v != "" for v in values):
             records.append(":".join(values))
@@ -125,7 +131,6 @@ def build_multi_record(row, groups):
     return "|".join(records)
 
 def process_file(file):
-
     df = pd.read_excel(file)
 
     output = pd.DataFrame()
@@ -279,13 +284,10 @@ def process_file(file):
     ]
 
     for source_col, target_col in zip(basic_columns, final_headers[:37]):
-
         if source_col in df.columns:
-
-            output[target_col] = df[source_col].apply(format_value)
+            output[target_col] = df[source_col].apply(lambda v: format_field(source_col, v))
 
     for driver in range(1, 6):
-
         details_fields = [
             f"Driver {driver} Title ",
             f"Driver {driver}  Forename ",
@@ -435,16 +437,14 @@ def process_file(file):
     ]
 
     for col in vehicle_columns:
-
         if col in df.columns:
-            output[col] = df[col].apply(format_value)
+            output[col] = df[col].apply(lambda v: format_field(col, v))
 
     output = output.reindex(columns=final_headers)
 
     excel_output = BytesIO()
 
     with pd.ExcelWriter(excel_output, engine="openpyxl") as writer:
-
         output.to_excel(
             writer,
             sheet_name="Final_Export_Output",
@@ -458,13 +458,11 @@ def process_file(file):
     worksheet = workbook["Final_Export_Output"]
 
     for column_cells in worksheet.columns:
-
         max_length = 0
 
         column_letter = column_cells[0].column_letter
 
         for cell in column_cells:
-
             cell.alignment = Alignment(
                 horizontal="center",
                 vertical="center"
@@ -487,9 +485,7 @@ def process_file(file):
     return final_output
 
 if uploaded_file:
-
     with st.spinner("Processing file..."):
-
         result_file = process_file(uploaded_file)
 
     st.success("Processing Complete")
