@@ -38,6 +38,15 @@ def format_number(v):
 
     return str(v).strip()
 
+def format_currency(v):
+    if is_blank(v):
+        return ""
+
+    try:
+        return f"{float(v):.2f}"
+    except:
+        return str(v).strip()
+
 def format_code_3(v):
     if is_blank(v):
         return ""
@@ -78,6 +87,13 @@ def format_time(v):
     if isinstance(v, pd.Timestamp):
         return v.strftime("%H:%M")
 
+    if isinstance(v, str):
+        try:
+            parsed = pd.to_datetime(v, format="%H:%M", errors="raise")
+            return parsed.strftime("%H:%M")
+        except:
+            pass
+
     parsed = pd.to_datetime(v, errors="coerce")
 
     if pd.notna(parsed):
@@ -86,7 +102,14 @@ def format_time(v):
     return str(v).strip()
 
 def format_field(field, v):
-    field_lower = field.lower()
+    field_lower = field.lower().strip()
+
+    if field_lower in [
+        "net policy premium",
+        "total policy premium",
+        "commission amount"
+    ]:
+        return format_currency(v)
 
     if "occupation" in field_lower:
         return format_code_3(v)
