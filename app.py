@@ -85,14 +85,22 @@ def format_time(v):
         return ""
 
     if isinstance(v, pd.Timestamp):
-        return "'" + v.strftime("%H:%M")
+        return v.strftime("%H:%M")
 
-    parsed = pd.to_datetime(v, errors="coerce")
+    text = str(v).strip().replace("'", "")
+
+    if text == "":
+        return ""
+
+    parsed = pd.to_datetime(text, errors="coerce")
 
     if pd.notna(parsed):
-        return "'" + parsed.strftime("%H:%M")
+        return parsed.strftime("%H:%M")
 
-    return "'" + str(v).strip()
+    if len(text) >= 5:
+        return text[:5]
+
+    return text
 
 def format_field(field, v):
     field_lower = field.lower().strip()
@@ -103,6 +111,9 @@ def format_field(field, v):
         "commission amount"
     ]:
         return format_currency(v)
+
+    if field_lower == "transaction effective time":
+        return format_time(v)
 
     if "occupation" in field_lower:
         return format_code_3(v)
@@ -456,6 +467,14 @@ def process_file(file):
         if col in df.columns:
             output[col] = df[col].apply(lambda v: format_field(col, v))
 
+    if "Transaction Effective Time" in output.columns:
+        output["Transaction Effective Time"] = (
+            output["Transaction Effective Time"]
+            .astype(str)
+            .str.replace("'", "", regex=False)
+            .str.slice(0, 5)
+        )
+
     output = output.reindex(columns=final_headers)
 
     excel_output = BytesIO()
@@ -483,6 +502,9 @@ def process_file(file):
                 horizontal="center",
                 vertical="center"
             )
+
+            if column_letter == "I" and cell.row > 1:
+                cell.number_format = "@"
 
             try:
                 if len(str(cell.value)) > max_length:
