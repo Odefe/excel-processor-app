@@ -116,13 +116,13 @@ def format_field(field, v):
         return format_time(v)
 
     if "occupation" in field_lower:
-    return format_code_3(v)
+        return format_code_3(v)
 
     if "sentence type" in field_lower:
-    return format_code_3(v)
+        return format_code_3(v)
 
     if "offence type" in field_lower:
-    return format_number(v)
+        return format_number(v)
 
     if "date" in field_lower or "dob" in field_lower:
         return format_date(v)
