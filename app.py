@@ -85,21 +85,14 @@ def format_time(v):
         return ""
 
     if isinstance(v, pd.Timestamp):
-        return v.strftime("%H:%M")
-
-    if isinstance(v, str):
-        try:
-            parsed = pd.to_datetime(v, format="%H:%M", errors="raise")
-            return parsed.strftime("%H:%M")
-        except:
-            pass
+        return "'" + v.strftime("%H:%M")
 
     parsed = pd.to_datetime(v, errors="coerce")
 
     if pd.notna(parsed):
-        return parsed.strftime("%H:%M")
+        return "'" + parsed.strftime("%H:%M")
 
-    return str(v).strip()
+    return "'" + str(v).strip()
 
 def format_field(field, v):
     field_lower = field.lower().strip()
